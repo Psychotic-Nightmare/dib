@@ -1,76 +1,137 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './App.css';
+import logo from './logo.svg';
+import Teams from './teams';
 
 function App() {
-    const [players, setPlayers] = useState([]);
+    const [players, setPlayers] = useState(['', '', '', '']);
     const [gameState, setGameState] = useState(null);
-    const [guess, setGuess] = useState(0);
-    const [response, setResponse] = useState(0);
     const [timer, setTimer] = useState(30);
-    const [rounds, setRounds] = useState(0);
     const [gameOver, setGameOver] = useState(false);
     const [winner, setWinner] = useState(null);
+    const [category, setCategory] = useState(null);
+    const [gameStarted, setGameStarted] = useState(false);
+    const countdown = useRef(null);
+    const [isPaused, setIsPaused] = useState(true);
+    const [selectingWinner, setSelectingWinner] = useState(false);
 
     useEffect(() => {
-        if (gameState && gameState.gameStarted && timer > 0) {
-            const timeout = setTimeout(() => setTimer(timer - 1), 1000);
-            return () => clearTimeout(timeout);
+        if (gameStarted && timer > 0 && !isPaused) {
+            countdown.current = setInterval(() => {
+                setTimer((timer) => timer - 1);
+            }, 1000);
+        } else if (!gameStarted || timer === 0 || isPaused) {
+            clearInterval(countdown.current);
+            if (timer === 0) {
+                setSelectingWinner(true);
+            }
         }
-    }, [gameState, timer]);
+        return () => clearInterval(countdown.current);
+    }, [gameStarted, timer, isPaused]);
 
     useEffect(() => {
-        if (rounds === 5) {
+        if (gameState && gameState.rounds === 5) {
             setGameOver(true);
             setWinner(gameState.score.team1 > gameState.score.team2 ? 'team1' : 'team2');
         }
-    }, [rounds, gameState]);
+    }, [gameState]);
 
     const createTeams = () => {
-        axios.post('/createTeams', { players })
-            .then(res => setGameState(res.data))
+        axios.post('http://localhost:3000/createTeams', { players })
+            .then(res => {
+                setGameState(res.data);
+                setCategory(res.data.category);
+            })
             .catch(err => console.error(err));
     };
 
     const startGame = () => {
-        axios.post('/startGame')
+        axios.post('http://localhost:3000/startGame')
             .then(res => {
                 setGameState(res.data);
-                setTimer(30); // Reset the timer to 30 seconds when the game starts
+                setGameStarted(true);
+                setIsPaused(false);
             })
             .catch(err => console.error(err));
     };
 
-    const submitGuess = () => {
-        axios.post('/submitGuess', { guess })
-            .then(res => setGameState(res.data))
+    const endRound = () => {
+        axios.post('http://localhost:3000/endRound')
+            .then(res => {
+                setGameState(res.data);
+                setCategory(res.data.category);
+                setIsPaused(true);
+            })
             .catch(err => console.error(err));
     };
 
-    const submitResponse = () => {
-        axios.post('/submitResponse', { response })
+    const pauseGame = () => {
+        setIsPaused(true);
+    };
+
+    const startRound = () => {
+        setIsPaused(false);
+    };
+
+    const doItB = () => {
+        setTimer(10);
+        setIsPaused(false);
+    };
+
+    const selectWinner = (team) => {
+        axios.post('http://localhost:3000/selectWinner', { team })
             .then(res => {
                 setGameState(res.data);
-                setRounds(rounds + 1); // Increment the round count after each round
+                setCategory(res.data.category); // Update the category
+                setTimer(30); // Reset the timer
+                setIsPaused(true); // Pause the game
+                setSelectingWinner(false);
             })
             .catch(err => console.error(err));
+    };
+
+    const resetTimer = () => {
+        setTimer(30);
+        setIsPaused(true);
     };
 
     return (
-        <div>
-            <input type="text" onChange={e => setPlayers(e.target.value.split(','))} />
-            <button onClick={createTeams}>Create Teams</button>
-            {gameState && <div>
-                <button onClick={startGame}>Start Game</button>
-                <input type="number" onChange={e => setGuess(e.target.value)} />
-                <button onClick={submitGuess}>Submit Guess</button>
-                <input type="number" onChange={e => setResponse(e.target.value)} />
-                <button onClick={submitResponse}>Submit Response</button>
-                <div>{JSON.stringify(gameState)}</div>
-                <div>Time remaining: {timer} seconds</div>
-                <div>Current round: {rounds + 1} / 5</div> {/* Display the current round number */}
-                {gameOver && <div>Game over! The winner is {winner}!</div>}
-            </div>}
+        <div className="App">
+            <header className="App-header">
+                <img src={logo} className="App-logo" alt="logo" />
+                {gameState ? (
+                    <div>
+                        <Teams gameState={gameState} />
+                        <div>Category: {category}</div>
+                        <div>Time remaining: {timer} seconds</div>
+                        <div>Current round: {gameState.rounds + 1} / 5</div>
+                        {!gameStarted && <button onClick={startGame}>Start Game</button>}
+                        {gameStarted && (
+                            <>
+                                <button onClick={isPaused ? startRound : pauseGame}>{isPaused ? 'Start' : 'Pause'}</button>
+                                <button onClick={doItB}>Do It B</button>
+                                <button onClick={resetTimer}>Reset</button>
+                            </>
+                        )}
+                        {selectingWinner && (
+                            <div>
+                                <button onClick={() => selectWinner('team1')}>Team 1 Wins</button>
+                                <button onClick={() => selectWinner('team2')}>Team 2 Wins</button>
+                            </div>
+                        )}
+                        {gameOver && <div>Game over! The winner is {winner}!</div>}
+                    </div>
+                ) : (
+                    <div className="input-container">
+                        <input type="text" placeholder="Player 1" onChange={e => setPlayers(prevPlayers => [...prevPlayers.slice(0, 0), e.target.value, ...prevPlayers.slice(1)])} />
+                        <input type="text" placeholder="Player 2" onChange={e => setPlayers(prevPlayers => [...prevPlayers.slice(0, 1), e.target.value, ...prevPlayers.slice(2)])} />
+                        <input type="text" placeholder="Player 3" onChange={e => setPlayers(prevPlayers => [...prevPlayers.slice(0, 2), e.target.value, ...prevPlayers.slice(3)])} />
+                        <input type="text" placeholder="Player 4" onChange={e => setPlayers(prevPlayers => [...prevPlayers.slice(0, 3), e.target.value, ...prevPlayers.slice(4)])} />
+                        <button onClick={createTeams}>Create Teams</button>
+                    </div>
+                )}
+            </header>
         </div>
     );
 }
