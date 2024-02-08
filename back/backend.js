@@ -3,7 +3,6 @@ const cors = require('cors');
 const app = express();
 app.use(cors());
 app.use(express.json());
-const axios = require('axios');
 const categories = require('./categories');
 
 let gameState = {
@@ -48,6 +47,12 @@ app.post('/endRound', (req, res) => {
     let category = categories[Math.floor(Math.random() * categories.length)];
     gameState.category = category;
 
+    if (gameState.score[winningTeam] === 3) {
+        gameState.winner = winningTeam;
+        gameState.gameOver = true;
+        message = `Game over, ${winningTeam} is the winner`;
+    }
+
     res.json(gameState);
 });
 
@@ -58,6 +63,12 @@ app.post('/selectWinner', (req, res) => {
 
     let category = categories[Math.floor(Math.random() * categories.length)];
     gameState.category = category;
+
+    if (gameState.score[team] === 3) {
+        gameState.winner = team;
+        gameState.gameOver = true;
+        message = `Game over, ${team} is the winner`;
+    }
 
     res.json(gameState);
 });

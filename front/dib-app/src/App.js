@@ -8,8 +8,6 @@ function App() {
     const [players, setPlayers] = useState(['', '', '', '']);
     const [gameState, setGameState] = useState(null);
     const [timer, setTimer] = useState(30);
-    const [gameOver, setGameOver] = useState(false);
-    const [winner, setWinner] = useState(null);
     const [category, setCategory] = useState(null);
     const [gameStarted, setGameStarted] = useState(false);
     const countdown = useRef(null);
@@ -30,13 +28,6 @@ function App() {
         return () => clearInterval(countdown.current);
     }, [gameStarted, timer, isPaused]);
 
-    useEffect(() => {
-        if (gameState && gameState.rounds === 5) {
-            setGameOver(true);
-            setWinner(gameState.score.team1 > gameState.score.team2 ? 'team1' : 'team2');
-        }
-    }, [gameState]);
-
     const createTeams = () => {
         axios.post('http://localhost:3000/createTeams', { players })
             .then(res => {
@@ -52,16 +43,6 @@ function App() {
                 setGameState(res.data);
                 setGameStarted(true);
                 setIsPaused(false);
-            })
-            .catch(err => console.error(err));
-    };
-
-    const endRound = () => {
-        axios.post('http://localhost:3000/endRound')
-            .then(res => {
-                setGameState(res.data);
-                setCategory(res.data.category);
-                setIsPaused(true);
             })
             .catch(err => console.error(err));
     };
@@ -120,7 +101,7 @@ function App() {
                                 <button onClick={() => selectWinner('team2')}>Team 2 Wins</button>
                             </div>
                         )}
-                        {gameOver && <div>Game over! The winner is {winner}!</div>}
+                        {gameState.gameOver && <div>Game over! The winner is {gameState.winner}!</div>}
                     </div>
                 ) : (
                     <div className="input-container">
